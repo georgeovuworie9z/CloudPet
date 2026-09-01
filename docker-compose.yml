@@ -1,0 +1,42 @@
+# LOCAL DEVELOPMENT ONLY.
+# Not for staging or production. Do not put real secrets in this file.
+# AWS deployment (RDS, ECS/EC2, ALB, S3) is handled outside this repository.
+
+name: cloudpet
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: cloudpet
+      POSTGRES_PASSWORD: cloudpet
+      POSTGRES_DB: cloudpet
+    ports:
+      - "5432:5432"
+    volumes:
+      - cloudpet_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloudpet -d cloudpet"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      ENVIRONMENT: local
+      # Talks to the db service on the compose network.
+      DATABASE_URL: postgresql+psycopg://cloudpet:cloudpet@db:5432/cloudpet
+      # Local throwaway value; override via the environment, never commit a real key.
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-local-dev-secret-not-for-production}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  cloudpet_pgdata:

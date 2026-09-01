@@ -1,0 +1,46 @@
+[project]
+name = "cloudpet-backend"
+version = "0.1.0"
+description = "CloudPet backend REST API"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy>=2.0.36",
+    "psycopg[binary]>=3.2",
+    "alembic>=1.14",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.27",
+    "ruff>=0.7",
+    "mypy>=1.13",
+]
+
+# Application service, not a distributable package: uv only manages the environment.
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "C4", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unused_configs = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra"
