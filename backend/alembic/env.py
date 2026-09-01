@@ -11,10 +11,8 @@ from logging.config import fileConfig
 from alembic import context
 from app.core.config import settings
 from app.db.base import Base
+from app.models import User  # noqa: F401  (registers models on Base.metadata)
 from sqlalchemy import engine_from_config, pool
-
-# Import ORM model modules here as they are added so that Base.metadata is fully
-# populated for autogenerate. (No models exist yet.)
 
 config = context.config
 config.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL))
