@@ -27,7 +27,7 @@ jobs:
     env:
       ENVIRONMENT: test
       DATABASE_URL: postgresql+psycopg://cloudpet:cloudpet@localhost:5432/cloudpet_test
-      JWT_SECRET_KEY: ci-secret-not-for-production
+      JWT_SECRET_KEY: insecure-ci-only-jwt-secret-do-not-use-in-prod-0123456789
       JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "30"
 
     defaults:

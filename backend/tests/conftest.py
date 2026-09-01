@@ -12,7 +12,9 @@ from fastapi.testclient import TestClient
 def pytest_configure() -> None:
     """Provide safe defaults for required settings before the app is imported."""
     os.environ.setdefault("ENVIRONMENT", "test")
-    os.environ.setdefault("JWT_SECRET_KEY", "test-secret-not-for-production")
+    os.environ.setdefault(
+        "JWT_SECRET_KEY", "insecure-test-only-jwt-secret-do-not-use-in-prod-0123456789"
+    )
     os.environ.setdefault(
         "DATABASE_URL",
         "postgresql+psycopg://cloudpet:cloudpet@localhost:5432/cloudpet_test",
