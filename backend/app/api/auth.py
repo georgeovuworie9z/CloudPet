@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, status
 
-from app.api.deps import UserServiceDep
+from app.api.deps import CurrentUserDep, UserServiceDep
 from app.api.errors import ErrorResponse
 from app.core.jwt import create_access_token
 from app.models.user import User
@@ -45,3 +45,13 @@ def login(payload: LoginRequest, service: UserServiceDep) -> TokenResponse:
     """Verify credentials and return a signed HS256 access token."""
     user = service.authenticate(payload)
     return TokenResponse(access_token=create_access_token(str(user.id)))
+
+
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    responses={status.HTTP_401_UNAUTHORIZED: {"model": ErrorResponse}},
+)
+def read_current_user(user: CurrentUserDep) -> User:
+    """Return the authenticated user's public representation."""
+    return user

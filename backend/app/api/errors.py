@@ -22,6 +22,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.services.exceptions import (
     DuplicateEmailError,
     InvalidCredentialsError,
+    InvalidProfileUpdateError,
     UserServiceError,
 )
 
@@ -127,6 +128,14 @@ def _handle_not_authenticated(request: Request, exc: Exception) -> JSONResponse:
     )
 
 
+def _handle_invalid_profile_update(request: Request, exc: Exception) -> JSONResponse:
+    return _envelope(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        code="INVALID_PROFILE_UPDATE",
+        message=str(exc),
+    )
+
+
 def _handle_unmapped_service_error(request: Request, exc: Exception) -> JSONResponse:
     logger.exception("Unhandled service error")
     return _envelope(
@@ -164,6 +173,7 @@ def install_error_handlers(app: FastAPI) -> None:
         (DuplicateEmailError, _handle_duplicate_email),
         (InvalidCredentialsError, _handle_invalid_credentials),
         (NotAuthenticatedError, _handle_not_authenticated),
+        (InvalidProfileUpdateError, _handle_invalid_profile_update),
         (UserServiceError, _handle_unmapped_service_error),
         (StarletteHTTPException, _handle_http_exception),
         (Exception, _handle_unexpected_error),
