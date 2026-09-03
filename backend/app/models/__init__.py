@@ -6,6 +6,7 @@ fully populated for Alembic (autogenerate and metadata comparison).
 
 from __future__ import annotations
 
+from app.models.pet import Pet
 from app.models.user import User
 
-__all__ = ["User"]
+__all__ = ["Pet", "User"]
