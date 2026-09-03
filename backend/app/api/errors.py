@@ -30,6 +30,15 @@ logger = logging.getLogger("app.api")
 _INTERNAL_ERROR_MESSAGE = "An internal error occurred"
 
 
+class NotAuthenticatedError(Exception):
+    """Raised by ``get_current_user`` when a request is not authenticated.
+
+    Covers a missing/non-Bearer header, an invalid/expired/wrong-type token, a
+    non-UUID subject, and a missing or inactive user -- all indistinguishable in
+    the response.
+    """
+
+
 class ErrorDetail(BaseModel):
     """One field-level problem, used for validation errors."""
 
@@ -109,6 +118,15 @@ def _handle_invalid_credentials(request: Request, exc: Exception) -> JSONRespons
     )
 
 
+def _handle_not_authenticated(request: Request, exc: Exception) -> JSONResponse:
+    return _envelope(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        code="NOT_AUTHENTICATED",
+        message="Not authenticated",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
 def _handle_unmapped_service_error(request: Request, exc: Exception) -> JSONResponse:
     logger.exception("Unhandled service error")
     return _envelope(
@@ -145,6 +163,7 @@ def install_error_handlers(app: FastAPI) -> None:
         (RequestValidationError, _handle_validation_error),
         (DuplicateEmailError, _handle_duplicate_email),
         (InvalidCredentialsError, _handle_invalid_credentials),
+        (NotAuthenticatedError, _handle_not_authenticated),
         (UserServiceError, _handle_unmapped_service_error),
         (StarletteHTTPException, _handle_http_exception),
         (Exception, _handle_unexpected_error),
