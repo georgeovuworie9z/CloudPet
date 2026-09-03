@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.repositories.pet import PetRepository
 from app.repositories.user import UserRepository
 
-__all__ = ["UserRepository"]
+__all__ = ["PetRepository", "UserRepository"]
