@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from datetime import timedelta
 
 import jwt
@@ -46,9 +47,16 @@ def test_expired_token_is_rejected() -> None:
 
 
 def test_tampered_token_is_rejected() -> None:
-    token = create_access_token("user-abc-123")
-    tampered = token[:-1] + ("a" if token[-1] != "a" else "b")
+    # Corrupt the signature at the byte level so the change is guaranteed:
+    # flipping a single base64url character can be a no-op, because the final
+    # character of a 32-byte HMAC signature carries 2 unused bits.
+    header, payload, signature = create_access_token("user-abc-123").split(".")
+    signature_bytes = base64.urlsafe_b64decode(signature + "=" * (-len(signature) % 4))
+    corrupted = bytes([signature_bytes[0] ^ 0xFF]) + signature_bytes[1:]
+    tampered_signature = base64.urlsafe_b64encode(corrupted).rstrip(b"=").decode("ascii")
+    tampered = f"{header}.{payload}.{tampered_signature}"
 
+    assert tampered_signature != signature
     with pytest.raises(InvalidTokenError):
         decode_access_token(tampered)
 
