@@ -66,3 +66,23 @@ cd backend
 uv run alembic upgrade head
 uv run alembic revision --autogenerate -m "message"
 ```
+
+## Test database
+
+Repository and service tests run against a **real PostgreSQL database**
+(`cloudpet_test`), not mocks. Each test runs inside a transaction that is rolled
+back afterwards (SAVEPOINT-based), so nothing persists between tests.
+
+The suite (via `tests/conftest.py`) migrates `cloudpet_test` to Alembic `head`
+at the start of the session and downgrades it to `base` at the end. The target
+database is taken from `DATABASE_URL` and is required to have `test` in its name.
+
+Local one-off setup, with the Compose `db` service running:
+
+```bash
+docker compose up -d db
+docker compose exec db createdb -U cloudpet cloudpet_test
+```
+
+CI already provisions PostgreSQL 17 and the `cloudpet_test` database, so no
+extra steps are needed there.
