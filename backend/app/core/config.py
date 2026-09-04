@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     # Access token lifetime in minutes.
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # AWS S3 object storage (pet images arrive in a later milestone). Optional:
+    # the application boots without these; the storage adapter only fails when it
+    # is actually constructed and used. Credentials are never configured here --
+    # they come from the AWS credential provider chain.
+    S3_BUCKET_NAME: str | None = None
+    AWS_REGION: str | None = None
+    S3_ENDPOINT_URL: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

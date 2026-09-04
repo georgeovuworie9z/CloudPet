@@ -25,6 +25,10 @@ def pytest_configure() -> None:
         "DATABASE_URL",
         "postgresql+psycopg://cloudpet:cloudpet@localhost:5432/cloudpet_test",
     )
+    # Harmless test-only values so boto3 / moto can construct a client offline.
+    os.environ.setdefault("AWS_ACCESS_KEY_ID", "testing")
+    os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "testing")
+    os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
 
 
 @pytest.fixture
