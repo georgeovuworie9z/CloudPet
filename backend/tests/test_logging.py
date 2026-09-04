@@ -52,6 +52,11 @@ def _record_with_exc_info() -> logging.LogRecord:
 def _configure(monkeypatch: pytest.MonkeyPatch, *, environment: str, level: str = "INFO") -> None:
     monkeypatch.setenv("ENVIRONMENT", environment)
     monkeypatch.setenv("LOG_LEVEL", level)
+    # Step 3K requires sslmode=require (or stronger) when ENVIRONMENT=production;
+    # harmless to set unconditionally for the other environments too.
+    monkeypatch.setenv(
+        "DATABASE_URL", "postgresql+psycopg://u:p@localhost:5432/cloudpet_test?sslmode=require"
+    )
     configure_logging(Settings())
 
 
