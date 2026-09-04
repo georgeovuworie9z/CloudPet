@@ -23,6 +23,8 @@ from app.services.exceptions import (
     DuplicateEmailError,
     InvalidCredentialsError,
     InvalidProfileUpdateError,
+    PetNotFoundError,
+    PetServiceError,
     UserServiceError,
 )
 
@@ -136,6 +138,14 @@ def _handle_invalid_profile_update(request: Request, exc: Exception) -> JSONResp
     )
 
 
+def _handle_pet_not_found(request: Request, exc: Exception) -> JSONResponse:
+    return _envelope(
+        status_code=status.HTTP_404_NOT_FOUND,
+        code="PET_NOT_FOUND",
+        message="Pet not found",
+    )
+
+
 def _handle_unmapped_service_error(request: Request, exc: Exception) -> JSONResponse:
     logger.exception("Unhandled service error")
     return _envelope(
@@ -175,6 +185,8 @@ def install_error_handlers(app: FastAPI) -> None:
         (NotAuthenticatedError, _handle_not_authenticated),
         (InvalidProfileUpdateError, _handle_invalid_profile_update),
         (UserServiceError, _handle_unmapped_service_error),
+        (PetNotFoundError, _handle_pet_not_found),
+        (PetServiceError, _handle_unmapped_service_error),
         (StarletteHTTPException, _handle_http_exception),
         (Exception, _handle_unexpected_error),
     ]

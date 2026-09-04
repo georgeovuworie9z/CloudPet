@@ -14,6 +14,7 @@ from app.core.jwt import InvalidTokenError, decode_access_token
 from app.db.session import get_db
 from app.models.user import User
 from app.repositories.user import UserRepository
+from app.services.pet import PetService
 from app.services.user import UserService
 
 SessionDep = Annotated[Session, Depends(get_db)]
@@ -27,6 +28,14 @@ def get_user_service(session: SessionDep) -> UserService:
 
 
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
+
+
+def get_pet_service(session: SessionDep) -> PetService:
+    """A :class:`PetService` bound to the request-scoped database session."""
+    return PetService(session)
+
+
+PetServiceDep = Annotated[PetService, Depends(get_pet_service)]
 
 
 def get_user_repository(session: SessionDep) -> UserRepository:
