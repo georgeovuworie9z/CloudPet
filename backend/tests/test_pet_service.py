@@ -167,14 +167,53 @@ def test_list_for_owner_returns_only_that_owners_pets(
     service.create(owner_a.id, _pet_create(name="A2"))
     service.create(owner_b.id, _pet_create(name="B1"))
 
-    pets_a = service.list_for_owner(owner_a.id)
+    pets_a = service.list_for_owner(owner_a.id, limit=100, offset=0)
 
     assert {pet.name for pet in pets_a} == {"A1", "A2"}
     assert all(pet.owner_id == owner_a.id for pet in pets_a)
 
 
 def test_list_for_owner_is_empty_for_owner_with_no_pets(service: PetService) -> None:
-    assert not service.list_for_owner(uuid4())
+    assert not service.list_for_owner(uuid4(), limit=100, offset=0)
+
+
+def test_list_for_owner_applies_limit_and_offset(db_session: Session, service: PetService) -> None:
+    owner = _make_user(db_session)
+    for i in range(5):
+        service.create(owner.id, _pet_create(name=f"pet-{i}"))
+
+    full = service.list_for_owner(owner.id, limit=100, offset=0)
+    page = service.list_for_owner(owner.id, limit=2, offset=2)
+
+    assert len(full) == 5
+    assert [pet.id for pet in page] == [pet.id for pet in full][2:4]
+
+
+def test_list_for_owner_passes_pagination_through_to_the_repository(
+    db_session: Session, service: PetService
+) -> None:
+    owner = _make_user(db_session)
+    for i in range(4):
+        service.create(owner.id, _pet_create(name=f"pet-{i}"))
+
+    via_service = service.list_for_owner(owner.id, limit=2, offset=1)
+    via_repository = PetRepository(db_session).list_by_owner(owner.id, limit=2, offset=1)
+
+    assert [pet.id for pet in via_service] == [pet.id for pet in via_repository]
+
+
+def test_list_for_owner_pagination_stays_owner_scoped(
+    db_session: Session, service: PetService
+) -> None:
+    owner_a = _make_user(db_session, email="a@example.com")
+    owner_b = _make_user(db_session, email="b@example.com")
+    for i in range(3):
+        service.create(owner_a.id, _pet_create(name=f"a-{i}"))
+        service.create(owner_b.id, _pet_create(name=f"b-{i}"))
+
+    page = service.list_for_owner(owner_a.id, limit=100, offset=0)
+
+    assert all(pet.owner_id == owner_a.id for pet in page)
 
 
 # --------------------------------------------------------------------------- #
@@ -376,15 +415,15 @@ def test_isolation_between_tests_part_1(db_session: Session, service: PetService
     owner = _make_user(db_session, email="iso@example.com")
     service.create(owner.id, _pet_create(name="iso-pet"))
 
-    assert len(service.list_for_owner(owner.id)) == 1
+    assert len(service.list_for_owner(owner.id, limit=100, offset=0)) == 1
 
 
 def test_isolation_between_tests_part_2(db_session: Session, service: PetService) -> None:
     # Re-uses the same owner email; a unique-constraint error here would mean
     # part 1's row leaked.
     owner = _make_user(db_session, email="iso@example.com")
-    assert not service.list_for_owner(owner.id)
+    assert not service.list_for_owner(owner.id, limit=100, offset=0)
 
     service.create(owner.id, _pet_create(name="iso-pet"))
 
-    assert len(service.list_for_owner(owner.id)) == 1
+    assert len(service.list_for_owner(owner.id, limit=100, offset=0)) == 1

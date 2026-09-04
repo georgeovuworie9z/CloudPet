@@ -7,7 +7,7 @@ Follows the patterns established by ``test_user_repository.py``.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -105,14 +105,14 @@ def test_list_by_owner_returns_only_that_owners_pets(
     repository.create(_make_pet(owner_b.id, name="B1"))
     db_session.commit()
 
-    pets_a = repository.list_by_owner(owner_a.id)
+    pets_a = repository.list_by_owner(owner_a.id, limit=100, offset=0)
 
     assert {pet.name for pet in pets_a} == {"A1", "A2"}
     assert all(pet.owner_id == owner_a.id for pet in pets_a)
 
 
 def test_list_by_owner_is_empty_for_owner_with_no_pets(repository: PetRepository) -> None:
-    assert not repository.list_by_owner(uuid4())
+    assert not repository.list_by_owner(uuid4(), limit=100, offset=0)
 
 
 def test_list_by_owner_orders_by_created_at_ascending(
@@ -128,9 +128,123 @@ def test_list_by_owner_orders_by_created_at_ascending(
     repository.create(_make_pet(owner.id, name="early", created_at=early))
     db_session.commit()
 
-    names = [pet.name for pet in repository.list_by_owner(owner.id)]
+    names = [pet.name for pet in repository.list_by_owner(owner.id, limit=100, offset=0)]
 
     assert names == ["early", "middle", "late"]
+
+
+# --------------------------------------------------------------------------- #
+# list_by_owner -- pagination
+# --------------------------------------------------------------------------- #
+
+
+def _seed(repository: PetRepository, owner_id: UUID, count: int) -> list[UUID]:
+    """Create ``count`` pets with strictly increasing ``created_at``; return ids in order."""
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    ids: list[UUID] = []
+    for i in range(count):
+        pet = repository.create(
+            _make_pet(owner_id, name=f"pet-{i:02d}", created_at=base + timedelta(days=i))
+        )
+        ids.append(pet.id)
+    return ids
+
+
+def test_list_by_owner_limit_caps_the_page_size(
+    db_session: Session, repository: PetRepository
+) -> None:
+    owner = _make_user(db_session)
+    _seed(repository, owner.id, 5)
+    db_session.commit()
+
+    assert len(repository.list_by_owner(owner.id, limit=2, offset=0)) == 2
+
+
+def test_list_by_owner_offset_skips_leading_rows(
+    db_session: Session, repository: PetRepository
+) -> None:
+    owner = _make_user(db_session)
+    ids = _seed(repository, owner.id, 5)
+    db_session.commit()
+
+    page = repository.list_by_owner(owner.id, limit=100, offset=2)
+
+    assert [pet.id for pet in page] == ids[2:]
+
+
+def test_list_by_owner_limit_and_offset_return_the_expected_slice(
+    db_session: Session, repository: PetRepository
+) -> None:
+    owner = _make_user(db_session)
+    ids = _seed(repository, owner.id, 5)
+    db_session.commit()
+
+    page = repository.list_by_owner(owner.id, limit=2, offset=1)
+
+    assert [pet.id for pet in page] == ids[1:3]
+
+
+def test_list_by_owner_pages_do_not_overlap_and_cover_everything(
+    db_session: Session, repository: PetRepository
+) -> None:
+    owner = _make_user(db_session)
+    ids = _seed(repository, owner.id, 5)
+    db_session.commit()
+
+    collected: list[UUID] = []
+    for offset in (0, 2, 4, 6):
+        page = repository.list_by_owner(owner.id, limit=2, offset=offset)
+        collected.extend(pet.id for pet in page)
+
+    assert collected == ids
+    assert len(set(collected)) == len(collected)
+
+
+def test_list_by_owner_offset_past_the_end_is_empty(
+    db_session: Session, repository: PetRepository
+) -> None:
+    owner = _make_user(db_session)
+    _seed(repository, owner.id, 3)
+    db_session.commit()
+
+    assert not repository.list_by_owner(owner.id, limit=100, offset=99)
+
+
+def test_list_by_owner_breaks_created_at_ties_by_id(
+    db_session: Session, repository: PetRepository
+) -> None:
+    owner = _make_user(db_session)
+    tie = datetime(2024, 6, 1, tzinfo=UTC)
+    for i in range(4):
+        repository.create(_make_pet(owner.id, name=f"tie-{i}", created_at=tie))
+    db_session.commit()
+
+    full = [pet.id for pet in repository.list_by_owner(owner.id, limit=100, offset=0)]
+    again = [pet.id for pet in repository.list_by_owner(owner.id, limit=100, offset=0)]
+
+    assert full == sorted(full)  # ascending by id when created_at ties
+    assert full == again  # repeatable across queries
+
+    paged: list[UUID] = []
+    for offset in (0, 2, 4):
+        page = repository.list_by_owner(owner.id, limit=2, offset=offset)
+        paged.extend(pet.id for pet in page)
+    assert paged == full
+
+
+def test_list_by_owner_pagination_is_owner_scoped(
+    db_session: Session, repository: PetRepository
+) -> None:
+    owner_a = _make_user(db_session, email="a@example.com")
+    owner_b = _make_user(db_session, email="b@example.com")
+    _seed(repository, owner_a.id, 3)
+    b_ids = set(_seed(repository, owner_b.id, 3))
+    db_session.commit()
+
+    page = repository.list_by_owner(owner_a.id, limit=100, offset=0)
+
+    assert all(pet.owner_id == owner_a.id for pet in page)
+    assert not (b_ids & {pet.id for pet in page})
 
 
 def test_save_persists_a_field_change(db_session: Session, repository: PetRepository) -> None:
@@ -209,16 +323,16 @@ def test_isolation_between_tests_part_1(db_session: Session, repository: PetRepo
     repository.create(_make_pet(owner.id, name="iso-pet"))
     db_session.commit()
 
-    assert len(repository.list_by_owner(owner.id)) == 1
+    assert len(repository.list_by_owner(owner.id, limit=100, offset=0)) == 1
 
 
 def test_isolation_between_tests_part_2(db_session: Session, repository: PetRepository) -> None:
     # Re-uses the same owner email; a unique-constraint error here would mean
     # part 1's row leaked.
     owner = _make_user(db_session, email="iso@example.com")
-    assert not repository.list_by_owner(owner.id)
+    assert not repository.list_by_owner(owner.id, limit=100, offset=0)
 
     repository.create(_make_pet(owner.id, name="iso-pet"))
     db_session.commit()
 
-    assert len(repository.list_by_owner(owner.id)) == 1
+    assert len(repository.list_by_owner(owner.id, limit=100, offset=0)) == 1

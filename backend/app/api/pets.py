@@ -10,9 +10,10 @@ another user both surface as the same 404 ``PET_NOT_FOUND``.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Query, status
 
 from app.api.deps import CurrentUserDep, PetServiceDep
 from app.api.errors import ErrorResponse
@@ -41,9 +42,19 @@ def create_pet(payload: PetCreate, user: CurrentUserDep, service: PetServiceDep)
     response_model=list[PetResponse],
     responses={status.HTTP_401_UNAUTHORIZED: {"model": ErrorResponse}},
 )
-def list_pets(user: CurrentUserDep, service: PetServiceDep) -> Sequence[Pet]:
-    """Return every pet owned by the authenticated user (ordered by ``created_at``)."""
-    return service.list_for_owner(user.id)
+def list_pets(
+    user: CurrentUserDep,
+    service: PetServiceDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> Sequence[Pet]:
+    """Return one page of the authenticated user's pets.
+
+    Ordered by ``created_at`` then ``id``. ``limit`` defaults to 20 (max 100);
+    ``offset`` defaults to 0. Paging is applied in SQL -- the full collection is
+    never loaded.
+    """
+    return service.list_for_owner(user.id, limit=limit, offset=offset)
 
 
 @router.get(

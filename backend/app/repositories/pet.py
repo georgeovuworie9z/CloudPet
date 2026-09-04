@@ -32,9 +32,21 @@ class PetRepository:
         """
         return self._session.get(Pet, pet_id)
 
-    def list_by_owner(self, owner_id: UUID) -> Sequence[Pet]:
-        """Return every pet owned by ``owner_id``, ordered by ``created_at`` ascending."""
-        statement = select(Pet).where(Pet.owner_id == owner_id).order_by(Pet.created_at)
+    def list_by_owner(self, owner_id: UUID, *, limit: int, offset: int) -> Sequence[Pet]:
+        """Return one page of ``owner_id``'s pets.
+
+        Ordered by ``created_at`` then ``id`` -- a stable total order, so ``LIMIT``
+        / ``OFFSET`` paging never repeats or skips a row when timestamps tie. Paging
+        happens in SQL; the full collection is never materialised. ``limit`` /
+        ``offset`` are trusted as given -- the API layer bounds them.
+        """
+        statement = (
+            select(Pet)
+            .where(Pet.owner_id == owner_id)
+            .order_by(Pet.created_at, Pet.id)
+            .limit(limit)
+            .offset(offset)
+        )
         return self._session.scalars(statement).all()
 
     def create(self, pet: Pet) -> Pet:

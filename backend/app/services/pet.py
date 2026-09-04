@@ -61,9 +61,14 @@ class PetService:
             raise PetNotFoundError(str(pet_id))
         return pet
 
-    def list_for_owner(self, owner_id: UUID) -> Sequence[Pet]:
-        """Return every pet owned by ``owner_id`` (ordered by ``created_at``)."""
-        return self._pets.list_by_owner(owner_id)
+    def list_for_owner(self, owner_id: UUID, *, limit: int, offset: int) -> Sequence[Pet]:
+        """Return one page of ``owner_id``'s pets (ordered by ``created_at`` then ``id``).
+
+        ``limit`` / ``offset`` are applied in SQL by the repository. This layer
+        does not re-validate them -- valid page bounds are an API-contract
+        concern, enforced by the route's query-parameter constraints.
+        """
+        return self._pets.list_by_owner(owner_id, limit=limit, offset=offset)
 
     def update(self, pet_id: UUID, owner_id: UUID, data: PetUpdate) -> Pet:
         """Apply a partial update to ``owner_id``'s pet ``pet_id``.

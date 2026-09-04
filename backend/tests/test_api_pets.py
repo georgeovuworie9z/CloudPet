@@ -90,6 +90,15 @@ def _create_pet(client: TestClient, headers: dict[str, str], **overrides: object
     return created
 
 
+def _create_pets(client: TestClient, headers: dict[str, str], count: int) -> list[dict[str, Any]]:
+    """Create ``count`` pets for the caller; return their response bodies in creation order."""
+    return [_create_pet(client, headers, name=f"pet-{i:02d}") for i in range(count)]
+
+
+def _ids(body: Any) -> list[str]:
+    return [str(pet["id"]) for pet in body]
+
+
 # --------------------------------------------------------------------------- #
 # Authentication
 # --------------------------------------------------------------------------- #
@@ -263,6 +272,207 @@ def test_list_pets_is_empty_for_user_with_no_pets(api_client: TestClient) -> Non
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+# --------------------------------------------------------------------------- #
+# GET /pets -- pagination
+# --------------------------------------------------------------------------- #
+
+
+def test_list_pets_default_limit_is_20(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+    _create_pets(api_client, headers, 21)
+
+    response = api_client.get(PETS_URL, headers=headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 20
+    full = api_client.get(PETS_URL, headers=headers, params={"limit": 100}).json()
+    assert _ids(body) == _ids(full)[:20]
+
+
+def test_list_pets_default_offset_is_0(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+    _create_pets(api_client, headers, 3)
+
+    default = api_client.get(PETS_URL, headers=headers).json()
+    explicit = api_client.get(PETS_URL, headers=headers, params={"offset": 0}).json()
+
+    assert _ids(default) == _ids(explicit)
+
+
+def test_list_pets_limit_1_returns_one_item(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+    _create_pets(api_client, headers, 3)
+
+    response = api_client.get(PETS_URL, headers=headers, params={"limit": 1})
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+
+
+def test_list_pets_limit_100_is_accepted(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+    _create_pets(api_client, headers, 5)
+
+    response = api_client.get(PETS_URL, headers=headers, params={"limit": 100})
+
+    assert response.status_code == 200
+    assert len(response.json()) == 5
+
+
+def test_list_pets_limit_0_is_422(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+
+    response = api_client.get(PETS_URL, headers=headers, params={"limit": 0})
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "VALIDATION_ERROR"
+    assert any(d["location"] == ["query", "limit"] for d in error["details"])
+
+
+def test_list_pets_limit_negative_is_422(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+
+    response = api_client.get(PETS_URL, headers=headers, params={"limit": -1})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_list_pets_limit_over_100_is_422(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+
+    response = api_client.get(PETS_URL, headers=headers, params={"limit": 101})
+
+    assert response.status_code == 422
+    details = response.json()["error"]["details"]
+    assert any(d["location"] == ["query", "limit"] for d in details)
+
+
+def test_list_pets_non_integer_limit_is_422(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+
+    response = api_client.get(PETS_URL, headers=headers, params={"limit": "abc"})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_list_pets_offset_negative_is_422(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+
+    response = api_client.get(PETS_URL, headers=headers, params={"offset": -1})
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "VALIDATION_ERROR"
+    assert any(d["location"] == ["query", "offset"] for d in error["details"])
+
+
+def test_list_pets_offset_skips_leading_items(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+    _create_pets(api_client, headers, 5)
+
+    full = _ids(api_client.get(PETS_URL, headers=headers, params={"limit": 100}).json())
+    page = api_client.get(PETS_URL, headers=headers, params={"limit": 100, "offset": 2})
+
+    assert page.status_code == 200
+    assert _ids(page.json()) == full[2:]
+
+
+def test_list_pets_offset_beyond_collection_returns_empty(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+    _create_pets(api_client, headers, 3)
+
+    response = api_client.get(PETS_URL, headers=headers, params={"offset": 99})
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_list_pets_custom_limit_and_offset_slice(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+    _create_pets(api_client, headers, 5)
+
+    full = _ids(api_client.get(PETS_URL, headers=headers, params={"limit": 100}).json())
+    page = api_client.get(PETS_URL, headers=headers, params={"limit": 2, "offset": 2})
+
+    assert _ids(page.json()) == full[2:4]
+
+
+def test_list_pets_pages_tile_the_collection_without_overlap(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+    _create_pets(api_client, headers, 5)
+
+    full = _ids(api_client.get(PETS_URL, headers=headers, params={"limit": 100}).json())
+
+    collected: list[str] = []
+    for offset in (0, 2, 4, 6):
+        page = api_client.get(PETS_URL, headers=headers, params={"limit": 2, "offset": offset})
+        assert page.status_code == 200
+        collected.extend(_ids(page.json()))
+
+    assert collected == full
+    assert len(set(collected)) == len(collected)
+
+
+def test_list_pets_ordering_is_stable_across_calls(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+    _create_pets(api_client, headers, 6)
+
+    first = _ids(api_client.get(PETS_URL, headers=headers, params={"limit": 100}).json())
+    second = _ids(api_client.get(PETS_URL, headers=headers, params={"limit": 100}).json())
+
+    assert first == second
+
+
+def test_list_pets_pagination_cannot_expose_another_users_pets(api_client: TestClient) -> None:
+    user_a, headers_a = _auth(api_client, email="a@example.com")
+    _user_b, headers_b = _auth(api_client, email="b@example.com")
+    _create_pets(api_client, headers_a, 3)
+    b_ids = {pet["id"] for pet in _create_pets(api_client, headers_b, 3)}
+
+    for offset in (0, 1, 2, 3):
+        page = api_client.get(PETS_URL, headers=headers_a, params={"limit": 100, "offset": offset})
+        assert page.status_code == 200
+        assert all(pet["owner_id"] == user_a["id"] for pet in page.json())
+        assert not (b_ids & {pet["id"] for pet in page.json()})
+
+
+def test_list_pets_empty_collection_with_pagination_params_returns_empty_list(
+    api_client: TestClient,
+) -> None:
+    _user, headers = _auth(api_client)
+
+    response = api_client.get(PETS_URL, headers=headers, params={"limit": 50, "offset": 0})
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_list_pets_pagination_still_requires_authentication(api_client: TestClient) -> None:
+    response = api_client.get(PETS_URL, params={"limit": 5, "offset": 5})
+
+    assert response.status_code == 401
+    assert response.headers["WWW-Authenticate"] == "Bearer"
+    assert response.json() == _UNAUTHORIZED_BODY
+
+
+def test_list_pets_invalid_limit_uses_the_standard_error_envelope(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+
+    response = api_client.get(PETS_URL, headers=headers, params={"limit": 0})
+
+    assert response.status_code == 422
+    body = response.json()
+    assert set(body) == {"error"}
+    assert body["error"]["code"] == "VALIDATION_ERROR"
+    assert body["error"]["message"] == "Request validation failed"
+    assert isinstance(body["error"]["details"], list)
+    assert body["error"]["details"]
 
 
 # --------------------------------------------------------------------------- #
@@ -539,7 +749,7 @@ class _RaisingPetService:
     def __init__(self, exc: Exception) -> None:
         self._exc = exc
 
-    def list_for_owner(self, owner_id: UUID) -> list[Pet]:
+    def list_for_owner(self, owner_id: UUID, *, limit: int, offset: int) -> list[Pet]:
         raise self._exc
 
 
@@ -579,6 +789,55 @@ def test_unmapped_pet_service_error_returns_500_envelope(
     assert body["error"]["code"] == "INTERNAL_SERVER_ERROR"
     assert body["error"]["details"] == []
     assert "internal detail that must not leak" not in response.text
+
+
+# --------------------------------------------------------------------------- #
+# Hardening -- regression locks
+# --------------------------------------------------------------------------- #
+
+
+def test_patch_pet_invalid_uuid_is_422_for_authenticated_request(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+
+    response = api_client.patch(f"{PETS_URL}/not-a-uuid", headers=headers, json={"name": "Rex"})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_delete_pet_invalid_uuid_is_422_for_authenticated_request(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+
+    response = api_client.delete(f"{PETS_URL}/not-a-uuid", headers=headers)
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_put_on_a_pet_item_is_405_method_not_allowed(api_client: TestClient) -> None:
+    _user, headers = _auth(api_client)
+    created = _create_pet(api_client, headers)
+
+    response = api_client.put(f"{PETS_URL}/{created['id']}", headers=headers, json={"name": "Rex"})
+
+    assert response.status_code == 405
+    assert response.json()["error"]["code"] == "METHOD_NOT_ALLOWED"
+
+
+def test_unauthenticated_malformed_uuid_is_401_not_422(api_client: TestClient) -> None:
+    # The auth dependency resolves before path validation, so an unauthenticated
+    # caller never learns whether the path was well-formed.
+    response = api_client.get(f"{PETS_URL}/not-a-uuid")
+
+    assert response.status_code == 401
+    assert response.json() == _UNAUTHORIZED_BODY
+
+
+def test_unauthenticated_invalid_query_param_is_401_not_422(api_client: TestClient) -> None:
+    response = api_client.get(PETS_URL, params={"limit": 0})
+
+    assert response.status_code == 401
+    assert response.json() == _UNAUTHORIZED_BODY
 
 
 # --------------------------------------------------------------------------- #
