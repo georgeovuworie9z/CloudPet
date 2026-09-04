@@ -33,3 +33,16 @@ class InvalidProfileUpdateError(UserServiceError):
     Currently this means an explicit ``null`` for ``first_name`` or
     ``last_name``, which are ``NOT NULL`` columns.
     """
+
+
+class PetServiceError(Exception):
+    """Base class for all pet service/domain errors."""
+
+
+class PetNotFoundError(PetServiceError):
+    """A pet lookup that was required to succeed found no matching row, or the
+    pet is owned by a different user.
+
+    The two cases are deliberately indistinguishable, so that knowing a pet's id
+    never reveals whether it exists.
+    """

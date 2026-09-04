@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.services.pet import PetService
 from app.services.user import UserService
 
-__all__ = ["UserService"]
+__all__ = ["PetService", "UserService"]
