@@ -7,6 +7,7 @@ repository only flushes. JWT creation and HTTP concerns are deliberately absent
 
 from __future__ import annotations
 
+import logging
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -23,6 +24,8 @@ from app.services.exceptions import (
     InvalidProfileUpdateError,
     UserNotFoundError,
 )
+
+logger = logging.getLogger(__name__)
 
 _MUTABLE_PROFILE_FIELDS = ("first_name", "last_name", "phone")
 _REQUIRED_PROFILE_FIELDS = ("first_name", "last_name")
@@ -67,13 +70,19 @@ class UserService:
         """Return the user for valid credentials, else raise :class:`InvalidCredentialsError`.
 
         The same exception is raised for an unknown email, a wrong password, and
-        an inactive account, so callers cannot distinguish the cases.
+        an inactive account, so callers cannot distinguish the cases. For the
+        same reason, a failed attempt is logged with no identifying information
+        at all (no email, no reason) -- the log must not become an oracle any
+        more than the exception is.
         """
         user = self._users.get_by_email(credentials.email)
         if user is None or not user.is_active:
+            logger.warning("Authentication failed")
             raise InvalidCredentialsError("invalid email or password")
         if not verify_password(credentials.password, user.password_hash):
+            logger.warning("Authentication failed")
             raise InvalidCredentialsError("invalid email or password")
+        logger.info("Authentication succeeded", extra={"user_id": str(user.id)})
         return user
 
     def update_profile(self, user_id: UUID, data: UserUpdate) -> User:

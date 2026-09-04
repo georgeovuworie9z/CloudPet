@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     AWS_REGION: str | None = None
     S3_ENDPOINT_URL: str | None = None
 
+    # Level for CloudPet's own "app.*" loggers (Uvicorn's own logging is separate
+    # and unaffected). One of the standard library's level names, e.g. DEBUG,
+    # INFO, WARNING, ERROR, CRITICAL.
+    LOG_LEVEL: str = "INFO"
+
 
 @lru_cache
 def get_settings() -> Settings:

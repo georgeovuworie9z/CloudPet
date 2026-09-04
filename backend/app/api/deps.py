@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -44,6 +44,7 @@ def get_user_repository(session: SessionDep) -> UserRepository:
 
 
 def get_current_user(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)],
     repository: Annotated[UserRepository, Depends(get_user_repository)],
 ) -> User:
@@ -53,6 +54,9 @@ def get_current_user(
     missing/non-Bearer header, an invalid/expired/wrong-type token, a subject that
     is not a UUID, or a user that does not exist or is inactive -- without
     distinguishing the cases.
+
+    On success, also sets ``request.state.user_id`` so the request-logging
+    middleware can attribute its summary log line to this user (by UUID only).
     """
     if credentials is None:
         raise NotAuthenticatedError()
@@ -71,6 +75,7 @@ def get_current_user(
     if user is None or not user.is_active:
         raise NotAuthenticatedError()
 
+    request.state.user_id = user.id
     return user
 
 
