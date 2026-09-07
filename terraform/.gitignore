@@ -1,0 +1,41 @@
+# Terraform — https://developer.hashicorp.com/terraform
+
+# Local .terraform directories (provider plugins, module cache).
+**/.terraform/*
+
+# State files — NEVER commit these, at any depth. This includes the
+# production environment state AND any future terraform/bootstrap/ local
+# state. They can contain sensitive resource attributes once real resources
+# exist.
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Transient lock-info file created during apply.
+.terraform.tfstate.lock.info
+
+# Crash logs.
+crash.log
+crash.*.log
+
+# Saved plan output.
+*.tfplan
+*tfplan*
+
+# Variable files — may contain sensitive data. Only *.tfvars.example is allowed.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Local override files.
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI configuration.
+.terraformrc
+terraform.rc
+
+# NOTE: .terraform.lock.hcl is intentionally NOT ignored — it is committed so
+# provider versions are reproducible.
