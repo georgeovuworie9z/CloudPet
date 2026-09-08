@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.10.0"
+  required_version = ">= 1.16.0, < 2.0.0"
 
   required_providers {
     aws = {
@@ -19,10 +19,29 @@ terraform {
 provider "aws" {
   region  = var.aws_region
   profile = var.aws_profile
+
+  default_tags {
+    tags = {
+      Project     = var.project
+      Environment = var.environment
+      ManagedBy   = "terraform"
+    }
+  }
 }
 
-# 3N-1 (Terraform Foundation) declares no resources and no data sources.
-# `terraform validate` runs fully offline. `terraform plan` (not run in 3N-1)
-# would report "No changes" and make only a read-only sts:GetCallerIdentity
-# call while configuring the provider. Resources are introduced incrementally
-# in later 3N milestones.
+# --------------------------------------------------------------------------
+# 3N-2 Networking: VPC, subnets, IGW, route tables, S3 Gateway endpoint.
+# The NAT Gateway is disabled for now (create_nat_gateway = false) so the
+# VPC skeleton costs ~$0/month; it is enabled in the compute milestone when
+# private-subnet egress is actually needed.
+# --------------------------------------------------------------------------
+module "networking" {
+  source = "../../modules/networking"
+
+  name_prefix        = "${var.project}-${var.environment}"
+  aws_region         = var.aws_region
+  vpc_cidr           = var.vpc_cidr
+  availability_zones = var.availability_zones
+  create_nat_gateway = var.create_nat_gateway
+  single_nat_gateway = var.single_nat_gateway
+}
