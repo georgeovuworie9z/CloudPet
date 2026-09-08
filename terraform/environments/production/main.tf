@@ -56,3 +56,13 @@ module "security" {
   name_prefix = "${var.project}-${var.environment}"
   vpc_id      = module.networking.vpc_id
 }
+
+# --------------------------------------------------------------------------
+# 3N-4 IAM: EC2 application instance role + instance profile (SSM, ECR pull,
+# CloudWatch Logs, pet-images S3). No EC2 resource consumes this yet; the
+# default inputs produce ARN patterns until 3N-5 (ECR) / 3N-6 (S3) land.
+# --------------------------------------------------------------------------
+module "iam" {
+  source      = "../../modules/iam"
+  name_prefix = "${var.project}-${var.environment}"
+}

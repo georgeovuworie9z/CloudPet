@@ -52,3 +52,23 @@ output "rds_security_group_id" {
   description = "ID of the RDS security group."
   value       = module.security.rds_security_group_id
 }
+
+output "app_instance_role_arn" {
+  description = "ARN of the EC2 application instance role."
+  value       = module.iam.instance_role_arn
+}
+
+output "app_instance_role_name" {
+  description = "Name of the EC2 application instance role."
+  value       = module.iam.instance_role_name
+}
+
+output "app_instance_profile_arn" {
+  description = "ARN of the EC2 application instance profile."
+  value       = module.iam.instance_profile_arn
+}
+
+output "app_instance_profile_name" {
+  description = "Name of the EC2 application instance profile."
+  value       = module.iam.instance_profile_name
+}
