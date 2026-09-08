@@ -37,3 +37,18 @@ output "nat_gateway_public_ips" {
   description = "NAT Gateway public IP(s); empty until create_nat_gateway is enabled."
   value       = module.networking.nat_gateway_public_ips
 }
+
+output "alb_security_group_id" {
+  description = "ID of the ALB security group."
+  value       = module.security.alb_security_group_id
+}
+
+output "app_security_group_id" {
+  description = "ID of the EC2/app security group."
+  value       = module.security.app_security_group_id
+}
+
+output "rds_security_group_id" {
+  description = "ID of the RDS security group."
+  value       = module.security.rds_security_group_id
+}

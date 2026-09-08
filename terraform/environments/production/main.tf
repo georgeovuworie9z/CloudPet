@@ -45,3 +45,14 @@ module "networking" {
   create_nat_gateway = var.create_nat_gateway
   single_nat_gateway = var.single_nat_gateway
 }
+
+# --------------------------------------------------------------------------
+# 3N-3 Security Groups: ALB -> app -> RDS. No ALB/EC2/RDS resources are
+# created here; later 3N milestones consume these SG IDs.
+# --------------------------------------------------------------------------
+module "security" {
+  source = "../../modules/security"
+
+  name_prefix = "${var.project}-${var.environment}"
+  vpc_id      = module.networking.vpc_id
+}
