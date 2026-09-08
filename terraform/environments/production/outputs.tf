@@ -72,3 +72,18 @@ output "app_instance_profile_name" {
   description = "Name of the EC2 application instance profile."
   value       = module.iam.instance_profile_name
 }
+
+output "ecr_repository_url" {
+  description = "Registry URL of the CloudPet API ECR repository."
+  value       = module.ecr.repository_url
+}
+
+output "ecr_repository_arn" {
+  description = "ARN of the CloudPet API ECR repository."
+  value       = module.ecr.repository_arn
+}
+
+output "ecr_repository_name" {
+  description = "Name of the CloudPet API ECR repository."
+  value       = module.ecr.repository_name
+}

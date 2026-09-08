@@ -58,11 +58,22 @@ module "security" {
 }
 
 # --------------------------------------------------------------------------
+# 3N-5 ECR: private repository for the CloudPet API image (immutable git-SHA
+# tags, scan-on-push, AES256, lifecycle-bounded). No image is pushed here;
+# push (GitHub OIDC) is deferred to 3O.
+# --------------------------------------------------------------------------
+module "ecr" {
+  source      = "../../modules/ecr"
+  name_prefix = "${var.project}-${var.environment}"
+}
+
+# --------------------------------------------------------------------------
 # 3N-4 IAM: EC2 application instance role + instance profile (SSM, ECR pull,
 # CloudWatch Logs, pet-images S3). No EC2 resource consumes this yet; the
-# default inputs produce ARN patterns until 3N-5 (ECR) / 3N-6 (S3) land.
+# pet-images S3 input still uses a naming pattern until 3N-6 lands.
 # --------------------------------------------------------------------------
 module "iam" {
-  source      = "../../modules/iam"
-  name_prefix = "${var.project}-${var.environment}"
+  source             = "../../modules/iam"
+  name_prefix        = "${var.project}-${var.environment}"
+  ecr_repository_arn = module.ecr.repository_arn
 }
