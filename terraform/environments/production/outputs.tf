@@ -122,3 +122,13 @@ output "db_master_user_secret_arn" {
   description = "ARN of the RDS-managed Secrets Manager secret holding the master password."
   value       = module.database.master_user_secret_arn
 }
+
+output "jwt_secret_parameter_name" {
+  description = "Name (path) of the SSM SecureString parameter holding the application JWT secret."
+  value       = module.secrets.jwt_secret_key_parameter_name
+}
+
+output "jwt_secret_parameter_arn" {
+  description = "ARN of the SSM SecureString parameter holding the application JWT secret."
+  value       = module.secrets.jwt_secret_key_parameter_arn
+}

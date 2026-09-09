@@ -30,6 +30,24 @@ variable "log_group_name" {
   default     = "/cloudpet/production"
 }
 
+variable "jwt_secret_parameter_arn" {
+  description = <<-EOT
+    Exact ARN of the SSM SecureString parameter holding the application JWT
+    secret (3N-8). When empty the SSM read statement is omitted.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "db_master_secret_arn" {
+  description = <<-EOT
+    Exact ARN of the RDS-managed master-user Secrets Manager secret (3N-7).
+    When empty the Secrets Manager read statement is omitted.
+  EOT
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   description = "Extra tags merged onto every resource, on top of provider default_tags."
   type        = map(string)

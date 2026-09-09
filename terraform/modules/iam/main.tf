@@ -5,9 +5,11 @@
 #   - ECR image pull
 #   - CloudWatch Logs stream writes (the log group is created by 3N-11)
 #   - S3 object access on the pet-images bucket (3N-6)
+#   - read the app JWT secret (SSM) and the RDS-managed master secret (3N-8),
+#     each only when its exact ARN is supplied
 #
-# No ALB/EC2/RDS/ECR/S3/log-group resources are created here; nothing consumes
-# the instance profile until the compute milestone.
+# No ALB/EC2/RDS/ECR/S3/log-group/secret resources are created here; nothing
+# consumes the instance profile until the compute milestone.
 
 data "aws_caller_identity" "current" {}
 
@@ -19,6 +21,23 @@ locals {
   log_group_arn = "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:${var.log_group_name}:*"
 
   pet_images_object_arn = var.pet_images_bucket_arn != "" ? "${var.pet_images_bucket_arn}/*" : "arn:aws:s3:::${var.name_prefix}-pet-images-*/*"
+
+  # Read-only access to the app JWT secret (SSM) and the RDS-managed master
+  # secret (Secrets Manager). Each statement appears only when its exact ARN is
+  # supplied -- there is no sensible fallback pattern for a secret ARN.
+  ssm_parameter_statements = var.jwt_secret_parameter_arn != "" ? [{
+    Sid      = "SsmAppParameterRead"
+    Effect   = "Allow"
+    Action   = ["ssm:GetParameter", "ssm:GetParameters"]
+    Resource = var.jwt_secret_parameter_arn
+  }] : []
+
+  rds_secret_statements = var.db_master_secret_arn != "" ? [{
+    Sid      = "RdsMasterSecretRead"
+    Effect   = "Allow"
+    Action   = "secretsmanager:GetSecretValue"
+    Resource = var.db_master_secret_arn
+  }] : []
 }
 
 resource "aws_iam_role" "app_instance" {
@@ -51,7 +70,7 @@ resource "aws_iam_policy" "app_instance" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
+    Statement = concat([
       {
         Sid      = "EcrAuthToken"
         Effect   = "Allow"
@@ -88,7 +107,7 @@ resource "aws_iam_policy" "app_instance" {
         ]
         Resource = local.pet_images_object_arn
       },
-    ]
+    ], local.ssm_parameter_statements, local.rds_secret_statements)
   })
 
   tags = merge(var.tags, { Name = "${var.name_prefix}-app-instance-policy" })
