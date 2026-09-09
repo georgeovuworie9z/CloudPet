@@ -6,6 +6,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 }
 
@@ -68,12 +72,22 @@ module "ecr" {
 }
 
 # --------------------------------------------------------------------------
+# 3N-6 Storage: private S3 bucket for pet images (Block Public Access, SSE-S3
+# AES256, no versioning, abort-incomplete-MPU lifecycle). The application
+# reaches it only via presigned URLs signed by the EC2 instance role.
+# --------------------------------------------------------------------------
+module "storage" {
+  source      = "../../modules/storage"
+  name_prefix = "${var.project}-${var.environment}"
+}
+
+# --------------------------------------------------------------------------
 # 3N-4 IAM: EC2 application instance role + instance profile (SSM, ECR pull,
-# CloudWatch Logs, pet-images S3). No EC2 resource consumes this yet; the
-# pet-images S3 input still uses a naming pattern until 3N-6 lands.
+# CloudWatch Logs, pet-images S3). No EC2 resource consumes this yet.
 # --------------------------------------------------------------------------
 module "iam" {
-  source             = "../../modules/iam"
-  name_prefix        = "${var.project}-${var.environment}"
-  ecr_repository_arn = module.ecr.repository_arn
+  source                = "../../modules/iam"
+  name_prefix           = "${var.project}-${var.environment}"
+  ecr_repository_arn    = module.ecr.repository_arn
+  pet_images_bucket_arn = module.storage.bucket_arn
 }

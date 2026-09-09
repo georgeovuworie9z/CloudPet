@@ -87,3 +87,13 @@ output "ecr_repository_name" {
   description = "Name of the CloudPet API ECR repository."
   value       = module.ecr.repository_name
 }
+
+output "pet_images_bucket_name" {
+  description = "Name of the pet-images S3 bucket (the application's S3_BUCKET_NAME)."
+  value       = module.storage.bucket_name
+}
+
+output "pet_images_bucket_arn" {
+  description = "ARN of the pet-images S3 bucket."
+  value       = module.storage.bucket_arn
+}
