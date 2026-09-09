@@ -132,3 +132,23 @@ output "jwt_secret_parameter_arn" {
   description = "ARN of the SSM SecureString parameter holding the application JWT secret."
   value       = module.secrets.jwt_secret_key_parameter_arn
 }
+
+output "alb_dns_name" {
+  description = "DNS name of the Application Load Balancer."
+  value       = module.load_balancer.alb_dns_name
+}
+
+output "alb_arn" {
+  description = "ARN of the Application Load Balancer."
+  value       = module.load_balancer.alb_arn
+}
+
+output "alb_zone_id" {
+  description = "Route 53 hosted-zone ID of the Application Load Balancer."
+  value       = module.load_balancer.alb_zone_id
+}
+
+output "target_group_arn" {
+  description = "ARN of the application target group."
+  value       = module.load_balancer.target_group_arn
+}

@@ -117,3 +117,18 @@ module "database" {
   subnet_ids             = module.networking.private_db_subnet_ids
   vpc_security_group_ids = [module.security.rds_security_group_id]
 }
+
+# --------------------------------------------------------------------------
+# 3N-9 Load Balancer: internet-facing ALB across the public subnets, an
+# instance target group on the app port with a /health check, and an HTTP
+# listener that forwards to it. No targets are registered (the ASG attaches
+# in 3N-10). HTTPS is deferred -- certificate_arn defaults to "" so no ACM /
+# HTTPS / redirect resources are created yet.
+# --------------------------------------------------------------------------
+module "load_balancer" {
+  source             = "../../modules/load_balancer"
+  name_prefix        = "${var.project}-${var.environment}"
+  vpc_id             = module.networking.vpc_id
+  subnet_ids         = module.networking.public_subnet_ids
+  security_group_ids = [module.security.alb_security_group_id]
+}
