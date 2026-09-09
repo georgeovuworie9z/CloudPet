@@ -91,3 +91,17 @@ module "iam" {
   ecr_repository_arn    = module.ecr.repository_arn
   pet_images_bucket_arn = module.storage.bucket_arn
 }
+
+# --------------------------------------------------------------------------
+# 3N-7 Database: private PostgreSQL 17 RDS instance in the isolated
+# private-db subnets. TLS enforced server-side; master password managed by
+# RDS (Secrets Manager), never in Terraform state. Single-AZ for cost. No
+# EC2 consumes it yet; the app connects once 3N-8 (secrets) / 3N-10
+# (compute) wire the host and credentials.
+# --------------------------------------------------------------------------
+module "database" {
+  source                 = "../../modules/database"
+  name_prefix            = "${var.project}-${var.environment}"
+  subnet_ids             = module.networking.private_db_subnet_ids
+  vpc_security_group_ids = [module.security.rds_security_group_id]
+}

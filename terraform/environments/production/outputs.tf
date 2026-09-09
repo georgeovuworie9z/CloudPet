@@ -97,3 +97,28 @@ output "pet_images_bucket_arn" {
   description = "ARN of the pet-images S3 bucket."
   value       = module.storage.bucket_arn
 }
+
+output "db_endpoint" {
+  description = "RDS connection endpoint (host:port)."
+  value       = module.database.endpoint
+}
+
+output "db_address" {
+  description = "RDS connection hostname."
+  value       = module.database.address
+}
+
+output "db_port" {
+  description = "RDS connection port."
+  value       = module.database.port
+}
+
+output "db_name" {
+  description = "Name of the initial database."
+  value       = module.database.db_name
+}
+
+output "db_master_user_secret_arn" {
+  description = "ARN of the RDS-managed Secrets Manager secret holding the master password."
+  value       = module.database.master_user_secret_arn
+}
