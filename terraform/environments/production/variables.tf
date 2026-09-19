@@ -39,13 +39,23 @@ variable "availability_zones" {
 }
 
 variable "create_nat_gateway" {
-  description = "Create the NAT Gateway now. Kept false until the compute milestone needs private-subnet egress."
+  description = "Create the NAT Gateway. Enabled at 3N-10 so private-app instances can reach ECR, SSM, Secrets Manager, and CloudWatch Logs."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "single_nat_gateway" {
   description = "One shared NAT Gateway (true, cost-optimized) vs one per AZ (false, HA)."
   type        = bool
   default     = true
+}
+
+variable "image_tag" {
+  description = <<-EOT
+    Immutable git-SHA tag of the CloudPet API image in ECR that the app
+    instances run. No default: a manually pushed image is a prerequisite of
+    3N-10 (image publishing is not automated until a later milestone), so an
+    apply must always name a real, already-pushed tag explicitly.
+  EOT
+  type        = string
 }

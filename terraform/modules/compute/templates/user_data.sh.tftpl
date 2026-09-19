@@ -1,0 +1,115 @@
+#!/bin/bash
+# CloudPet app instance boot script (Amazon Linux 2023, arm64).
+#
+# Fetches the JWT secret (SSM) and the RDS master password (Secrets Manager)
+# at boot using the instance role -- neither value is ever written into this
+# template, Terraform configuration, state, or outputs. Only identifiers
+# (parameter name, secret ARN) are baked in below; those are not secrets.
+#
+# `set -x` is deliberately NOT used and secret values are never echoed, so
+# they never reach this script's own stdout/stderr log.
+set -euo pipefail
+
+exec > >(tee /var/log/cloudpet-user-data.log) 2>&1
+
+REGION="${aws_region}"
+ECR_REPOSITORY_URL="${ecr_repository_url}"
+IMAGE_TAG="${image_tag}"
+APP_PORT="${app_port}"
+JWT_PARAMETER_NAME="${jwt_parameter_name}"
+DB_MASTER_SECRET_ARN="${db_master_secret_arn}"
+DB_ADDRESS="${db_address}"
+DB_PORT="${db_port}"
+DB_NAME="${db_name}"
+S3_BUCKET_NAME="${s3_bucket_name}"
+LOG_LEVEL="${log_level}"
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES="${jwt_access_token_expire_minutes}"
+
+echo "CloudPet boot: installing Docker and the AWS CLI"
+
+dnf install -y docker python3
+systemctl enable --now docker
+
+if ! command -v aws >/dev/null 2>&1; then
+  echo "CloudPet boot: aws CLI not found, installing the fallback"
+  dnf install -y unzip
+  curl -sS "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o /tmp/awscliv2.zip
+  unzip -q /tmp/awscliv2.zip -d /tmp
+  /tmp/aws/install
+  rm -rf /tmp/awscliv2.zip /tmp/aws
+fi
+
+if ! aws --version >/dev/null 2>&1; then
+  echo "ERROR: aws CLI is not usable after installation" >&2
+  exit 1
+fi
+
+echo "CloudPet boot: authenticating to ECR"
+aws ecr get-login-password --region "$REGION" \
+  | docker login --username AWS --password-stdin "$${ECR_REPOSITORY_URL%%/*}"
+
+echo "CloudPet boot: fetching secrets (values are not logged)"
+JWT_SECRET_KEY="$(aws ssm get-parameter --region "$REGION" \
+  --name "$JWT_PARAMETER_NAME" --with-decryption \
+  --query 'Parameter.Value' --output text)"
+if [ -z "$JWT_SECRET_KEY" ]; then
+  echo "ERROR: JWT secret retrieved from SSM parameter $JWT_PARAMETER_NAME was empty" >&2
+  exit 1
+fi
+
+DB_PASSWORD_RAW="$(aws secretsmanager get-secret-value --region "$REGION" \
+  --secret-id "$DB_MASTER_SECRET_ARN" \
+  --query 'SecretString' --output text \
+  | python3 -c 'import json, sys; print(json.load(sys.stdin)["password"])')"
+if [ -z "$DB_PASSWORD_RAW" ]; then
+  echo "ERROR: RDS master password retrieved from Secrets Manager was empty" >&2
+  exit 1
+fi
+
+# URL-encode the password before it goes into the SQLAlchemy connection URL.
+DB_PASSWORD="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$DB_PASSWORD_RAW")"
+if [ -z "$DB_PASSWORD" ]; then
+  echo "ERROR: URL-encoding the database password produced an empty value" >&2
+  exit 1
+fi
+
+DATABASE_URL="postgresql+psycopg://cloudpet:$${DB_PASSWORD}@$${DB_ADDRESS}:$${DB_PORT}/$${DB_NAME}?sslmode=require"
+
+echo "CloudPet boot: pulling $${ECR_REPOSITORY_URL}:$${IMAGE_TAG}"
+docker pull "$${ECR_REPOSITORY_URL}:$${IMAGE_TAG}"
+
+echo "CloudPet boot: starting the container"
+docker run -d \
+  --name cloudpet-api \
+  --restart=always \
+  -p "$${APP_PORT}:8000" \
+  -e ENVIRONMENT=production \
+  -e DATABASE_URL="$${DATABASE_URL}" \
+  -e JWT_SECRET_KEY="$${JWT_SECRET_KEY}" \
+  -e JWT_ACCESS_TOKEN_EXPIRE_MINUTES="$${JWT_ACCESS_TOKEN_EXPIRE_MINUTES}" \
+  -e AWS_REGION="$${REGION}" \
+  -e S3_BUCKET_NAME="$${S3_BUCKET_NAME}" \
+  -e LOG_LEVEL="$${LOG_LEVEL}" \
+  "$${ECR_REPOSITORY_URL}:$${IMAGE_TAG}"
+
+# Best-effort: drop secret values from this shell's environment now that the
+# container has them. Database migrations are intentionally NOT run here --
+# apply them manually via SSM Session Manager (docker exec ... alembic
+# upgrade head) per the project's migration policy.
+unset JWT_SECRET_KEY DB_PASSWORD_RAW DB_PASSWORD DATABASE_URL
+
+# `docker run -d` only confirms the container was created and started; it
+# returns success even if the process inside crashes moments later. Confirm
+# it is still running before declaring boot successful. Deliberately not
+# dumping `docker logs` here (a crash could echo the app's own error output,
+# which might include a connection string) -- diagnose via SSM Session
+# Manager (`docker logs cloudpet-api`) instead.
+sleep 5
+CONTAINER_STATE="$(docker inspect -f '{{.State.Status}}' cloudpet-api 2>/dev/null || echo not-found)"
+if [ "$CONTAINER_STATE" != "running" ]; then
+  echo "ERROR: cloudpet-api container is not running after startup (state: $CONTAINER_STATE)" >&2
+  echo "Diagnose via SSM Session Manager: docker logs cloudpet-api" >&2
+  exit 1
+fi
+
+echo "CloudPet boot: done"

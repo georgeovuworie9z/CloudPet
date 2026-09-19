@@ -152,3 +152,18 @@ output "target_group_arn" {
   description = "ARN of the application target group."
   value       = module.load_balancer.target_group_arn
 }
+
+output "asg_name" {
+  description = "Name of the application Auto Scaling Group."
+  value       = module.compute.asg_name
+}
+
+output "asg_arn" {
+  description = "ARN of the application Auto Scaling Group."
+  value       = module.compute.asg_arn
+}
+
+output "launch_template_id" {
+  description = "ID of the application launch template."
+  value       = module.compute.launch_template_id
+}

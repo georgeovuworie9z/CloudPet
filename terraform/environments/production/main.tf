@@ -132,3 +132,30 @@ module "load_balancer" {
   subnet_ids         = module.networking.public_subnet_ids
   security_group_ids = [module.security.alb_security_group_id]
 }
+
+# --------------------------------------------------------------------------
+# 3N-10 Compute: launch template + Auto Scaling Group for the app instances,
+# private-app subnets only, registered with the 3N-9 target group. No SSH, no
+# public IP. Secrets (JWT key, RDS password) are fetched at boot by the
+# instance role -- only their identifiers are passed in below, never their
+# values. Requires a manually pushed image in ECR (var.image_tag) -- image
+# publishing is not automated until a later milestone.
+# --------------------------------------------------------------------------
+module "compute" {
+  source = "../../modules/compute"
+
+  name_prefix           = "${var.project}-${var.environment}"
+  subnet_ids            = module.networking.private_app_subnet_ids
+  security_group_ids    = [module.security.app_security_group_id]
+  instance_profile_name = module.iam.instance_profile_name
+  target_group_arns     = [module.load_balancer.target_group_arn]
+  aws_region            = var.aws_region
+  ecr_repository_url    = module.ecr.repository_url
+  image_tag             = var.image_tag
+  jwt_parameter_name    = module.secrets.jwt_secret_key_parameter_name
+  db_master_secret_arn  = module.database.master_user_secret_arn
+  db_address            = module.database.address
+  db_port               = module.database.port
+  db_name               = module.database.db_name
+  s3_bucket_name        = module.storage.bucket_name
+}
