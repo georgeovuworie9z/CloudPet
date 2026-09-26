@@ -54,6 +54,6 @@ Add `-v` to also remove the PostgreSQL data volume.
 
 Backend application development is assisted by Claude Code.
 
-AWS infrastructure is designed and implemented manually by the project owner.
+AWS infrastructure is designed and implemented manually by me, the project owner.
 
 ChatGPT is used as the project's architecture and technical review assistant.
